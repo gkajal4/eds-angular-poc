@@ -75,7 +75,9 @@ export default async function decorate(block: HTMLElement) {
 }
 `;
 
-const componentTs = `import { Component } from '@angular/core';
+const componentTs = `import { Component, inject } from '@angular/core';
+import { DomSanitizer } from '@angular/platform-browser';
+import { EDS_BLOCK_HTML } from '../../shared/block-tokens';
 
 @Component({
   selector: '${selector}',
@@ -83,7 +85,10 @@ const componentTs = `import { Component } from '@angular/core';
   templateUrl: './${kebab}.component.html',
   styleUrl: './${kebab}.component.scss',
 })
-export class ${className} {}
+export class ${className} {
+  private readonly sanitizer = inject(DomSanitizer);
+  private readonly authoredHtml = inject(EDS_BLOCK_HTML, { optional: true });
+}
 `;
 
 const componentHtml = `<!-- ${kebab} -->
