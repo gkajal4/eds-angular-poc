@@ -11,7 +11,8 @@
     "angular:build": "webpack --config webpack.angular.config.cjs --mode production",
     "angular:watch": "webpack --config webpack.angular.config.cjs --mode development --watch",
     "angular:start": "WEBPACK_SERVE=true webpack serve --config webpack.angular.config.cjs --mode development",
-    "dev:angular": "concurrently -k -n aem,webpack -c blue,magenta \"npx -y @adobe/aem-cli up --no-open\" \"npm run angular:watch\""
+    "dev:angular": "concurrently -k -n aem,webpack -c blue,magenta \"npx -y @adobe/aem-cli up --no-open\" \"npm run angular:watch\"",
+    "angular:new-block": "node scripts/create-component.mjs"
   },
   "repository": {
     "type": "git",

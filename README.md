@@ -29,6 +29,7 @@ npm install
 
 | Script | Purpose |
 |--------|---------|
+| `npm run angular:new-block` | Scaffolds **`angular-app/app/<block-name>/`** (entry **`index.ts`**, component **`.ts` / `.html` / `.scss`**) with boilerplate; pass the block name after `--` (see [Adding a new Angular block](#adding-a-new-angular-block)) |
 | `npm run angular:build` | Production webpack build → copies artifacts into `blocks/` (and `dist/default/`) |
 | `npm run angular:watch` | Development webpack in watch mode (faster, no minify by default); updates `blocks/` on each successful build |
 | `npm run dev:angular` | Runs **AEM CLI** (`aem up --no-open`) and **`angular:watch`** together via `concurrently` |
@@ -253,7 +254,14 @@ Do not add **`block-config.js`** for this POC; decoration is fully driven by the
 
 ## Adding a new Angular block
 
-1. Create **`angular-app/app/<block-name>/`** with **`index.ts`**, **`<block-name>.component.ts`**, **`.html`**, **`.scss`** (same basename pattern as existing blocks).
+1. Scaffold the folder and boilerplate (kebab-case name, e.g. `profile-card`):
+
+   ```sh
+   npm run angular:new-block -- <block-name>
+   ```
+
+   This creates **`angular-app/app/<block-name>/`** with **`index.ts`**, **`<block-name>.component.ts`**, **`.html`**, and **`.scss`** (same basename pattern as existing blocks). You can also create those files by hand if you prefer.
+
 2. Run **`npm run angular:build`** (or **`angular:watch`**).
 3. Confirm **`blocks/<block-name>/`** contains **`.js`** and **`.css`**.
 4. Author content in the document with a block whose first class is **`<block-name>`** (same name as the folder).
