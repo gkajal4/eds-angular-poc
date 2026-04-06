@@ -32,9 +32,7 @@ export async function decorateWithStandaloneComponent<C>(
 
   block.replaceChildren();
 
-  const host = document.createElement('div');
-  host.className = options.hostClassName;
-  block.appendChild(host);
+  block.classList.add(options.hostClassName);
 
   const providers: (Provider | EnvironmentProviders)[] = [
     provideZoneChangeDetection({ eventCoalescing: true }),
@@ -46,7 +44,7 @@ export async function decorateWithStandaloneComponent<C>(
 
   const compRef = createComponent(options.component, {
     environmentInjector: appRef.injector,
-    hostElement: host,
+    hostElement: block,
   });
 
   appRef.attachView(compRef.hostView);

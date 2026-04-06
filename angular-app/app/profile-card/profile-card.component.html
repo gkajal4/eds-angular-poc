@@ -1,0 +1,5 @@
+@if (safeDecoratedHtml(); as html) {
+  <div class="profile-card-root__content" [innerHTML]="html"></div>
+} @else {
+  <p class="profile-card-root__empty">No profile content in this block.</p>
+}
