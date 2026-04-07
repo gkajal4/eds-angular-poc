@@ -29,267 +29,23 @@ function ProfileCardsComponent_Conditional_1_Template(rf, ctx) { if (rf & 1) {
     _angular_core__WEBPACK_IMPORTED_MODULE_1__["ɵɵtext"](1, "No content in this block.");
     _angular_core__WEBPACK_IMPORTED_MODULE_1__["ɵɵelementEnd"]();
 } }
-/**
- * `datasheet` is on the EDS `.block` host or parent (not always present in `EDS_BLOCK_HTML`).
- */
-function isDatasheetBlockContext(host) {
-    if (host.classList.contains('datasheet'))
-        return true;
-    if (host.parentElement?.classList.contains('datasheet'))
-        return true;
-    const block = host.closest('.block');
-    return block instanceof HTMLElement && block.classList.contains('datasheet');
-}
-/** EDS may send `<div class="profile-cards datasheet">…</div>` — separate handling from default cards. */
-function isProfileCardsDatasheetVariation(html) {
-    const doc = new DOMParser().parseFromString(html.trim(), 'text/html');
-    if (doc.body.querySelector('.profile-cards.datasheet'))
-        return true;
-    const root = doc.body.querySelector('.profile-cards') ?? doc.body.firstElementChild;
-    return (root instanceof HTMLElement
-        && root.classList.contains('profile-cards')
-        && root.classList.contains('datasheet'));
-}
-function isCardShellEmpty(card) {
-    if (card.querySelector('picture'))
-        return false;
-    const t = card.textContent?.replace(/\s/g, '') ?? '';
-    return t.length === 0;
-}
-function getDirectChildPs(el) {
-    return [...el.children].filter((c) => c.tagName === 'P');
-}
-/**
- * Column divs that match EDS profile shape: ≥5 direct &lt;p&gt;, first has &lt;picture&gt;.
- */
-function findColumnDivs(scope) {
-    const candidates = [];
-    scope.querySelectorAll('div').forEach((div) => {
-        const ps = getDirectChildPs(div);
-        if (ps.length < 5)
-            return;
-        if (!ps[0]?.querySelector('picture'))
-            return;
-        candidates.push(div);
-    });
-    return candidates.filter((d) => !candidates.some((other) => other !== d && d.contains(other)));
-}
-/**
- * One EDS column cell → card markup (divs only; picture / anchor preserved).
- */
-function buildCard(column, doc) {
-    if (isCardShellEmpty(column))
-        return null;
-    const ps = getDirectChildPs(column);
-    if (ps.length < 5)
-        return null;
-    const [pPic, pName, pTitle, pOrg, pDesc, pLink] = ps;
-    const card = doc.createElement('div');
-    card.className = 'profile-cards__card';
-    const header = doc.createElement('div');
-    header.className = 'profile-cards__header';
-    const media = doc.createElement('div');
-    media.className = 'profile-cards__media';
-    const picture = pPic?.querySelector('picture');
-    if (picture) {
-        const picClone = picture.cloneNode(true);
-        picClone.classList.add('profile-cards__picture');
-        const img = picClone.querySelector('img');
-        if (img)
-            img.classList.add('profile-cards__image');
-        media.appendChild(picClone);
-    }
-    const identity = doc.createElement('div');
-    identity.className = 'profile-cards__identity';
-    if (pName) {
-        const nameEl = doc.createElement('div');
-        nameEl.className = 'profile-cards__name';
-        nameEl.textContent = pName.textContent?.trim() ?? '';
-        identity.appendChild(nameEl);
-    }
-    if (pTitle) {
-        const roleEl = doc.createElement('div');
-        roleEl.className = 'profile-cards__role';
-        roleEl.textContent = pTitle.textContent?.trim() ?? '';
-        identity.appendChild(roleEl);
-    }
-    header.appendChild(media);
-    header.appendChild(identity);
-    const body = doc.createElement('div');
-    body.className = 'profile-cards__body';
-    if (pOrg) {
-        const orgEl = doc.createElement('div');
-        orgEl.className = 'profile-cards__org';
-        orgEl.textContent = pOrg.textContent?.trim() ?? '';
-        body.appendChild(orgEl);
-    }
-    if (pDesc) {
-        const descEl = doc.createElement('div');
-        descEl.className = 'profile-cards__description';
-        descEl.textContent = pDesc.textContent?.trim() ?? '';
-        body.appendChild(descEl);
-    }
-    const footer = doc.createElement('div');
-    footer.className = 'profile-cards__footer';
-    const cta = doc.createElement('div');
-    cta.className = 'profile-cards__cta';
-    if (pLink) {
-        cta.innerHTML = pLink.innerHTML;
-    }
-    footer.appendChild(cta);
-    card.appendChild(header);
-    card.appendChild(body);
-    card.appendChild(footer);
-    return card;
-}
-/**
- * Rewrites EDS row/column markup: `.profile-cards` > `.profile-cards__row` > `.profile-cards__card` × n
- * (no `__rows` / `__column` wrappers). Fallback: one row with all detected cards.
- */
-function decorateProfileCardsMarkup(html) {
-    const doc = new DOMParser().parseFromString(html.trim(), 'text/html');
-    const rootEl = doc.body.querySelector('.profile-cards') ?? doc.body;
-    const out = doc.createElement('div');
-    out.className = 'profile-cards';
-    const rowDivs = [...rootEl.children].filter((c) => c.tagName === 'DIV');
-    let placedFromRows = false;
-    rowDivs.forEach((rowEl) => {
-        const rowOut = doc.createElement('div');
-        rowOut.className = 'profile-cards__row';
-        [...rowEl.children]
-            .filter((c) => c.tagName === 'DIV')
-            .forEach((colEl) => {
-            const card = buildCard(colEl, doc);
-            if (card)
-                rowOut.appendChild(card);
-        });
-        if (rowOut.children.length > 0) {
-            out.appendChild(rowOut);
-            placedFromRows = true;
-        }
-    });
-    if (!placedFromRows) {
-        const flatRow = doc.createElement('div');
-        flatRow.className = 'profile-cards__row';
-        findColumnDivs(rootEl).forEach((colEl) => {
-            const card = buildCard(colEl, doc);
-            if (card)
-                flatRow.appendChild(card);
-        });
-        if (flatRow.children.length > 0) {
-            out.appendChild(flatRow);
-        }
-    }
-    return out.outerHTML;
-}
-/** Sheet column keys from AEM (includes typo `devision`). */
-const SHEET_KEY_IMAGE = 'profile image';
-const SHEET_KEY_NAME = 'name';
-const SHEET_KEY_DESIGNATION = 'designation';
-const SHEET_KEY_DIVISION = 'devision';
-const SHEET_KEY_DIVISION_ALT = 'division';
-const SHEET_KEY_DESCRIPTION = 'description';
-const SHEET_KEY_CTA_LABEL = 'learn more label';
-const SHEET_KEY_CTA_LINK = 'learn more link';
-function chunkPairs(items) {
-    const out = [];
-    for (let i = 0; i < items.length; i += 2) {
-        out.push(items.slice(i, i + 2));
-    }
-    return out;
-}
-/**
- * One sheet row → same DOM as {@link buildCard} (media, identity, body, CTA).
- */
-function buildCardFromSheetRow(row, doc) {
-    const imgSrc = (row[SHEET_KEY_IMAGE] ?? '').trim();
-    const name = (row[SHEET_KEY_NAME] ?? '').trim();
-    const designation = (row[SHEET_KEY_DESIGNATION] ?? '').trim();
-    const division = (row[SHEET_KEY_DIVISION] ?? row[SHEET_KEY_DIVISION_ALT] ?? '').trim();
-    const description = (row[SHEET_KEY_DESCRIPTION] ?? '').trim();
-    const ctaLabel = (row[SHEET_KEY_CTA_LABEL] ?? 'Learn more').trim();
-    const ctaHref = (row[SHEET_KEY_CTA_LINK] ?? '#').trim();
-    const card = doc.createElement('div');
-    card.className = 'profile-cards__card';
-    const header = doc.createElement('div');
-    header.className = 'profile-cards__header';
-    const media = doc.createElement('div');
-    media.className = 'profile-cards__media';
-    const picture = doc.createElement('picture');
-    picture.className = 'profile-cards__picture';
-    const img = doc.createElement('img');
-    img.className = 'profile-cards__image';
-    img.src = imgSrc;
-    img.alt = '';
-    img.loading = 'lazy';
-    picture.appendChild(img);
-    media.appendChild(picture);
-    const identity = doc.createElement('div');
-    identity.className = 'profile-cards__identity';
-    const nameEl = doc.createElement('div');
-    nameEl.className = 'profile-cards__name';
-    nameEl.textContent = name;
-    identity.appendChild(nameEl);
-    const roleEl = doc.createElement('div');
-    roleEl.className = 'profile-cards__role';
-    roleEl.textContent = designation;
-    identity.appendChild(roleEl);
-    header.appendChild(media);
-    header.appendChild(identity);
-    const body = doc.createElement('div');
-    body.className = 'profile-cards__body';
-    const orgEl = doc.createElement('div');
-    orgEl.className = 'profile-cards__org';
-    orgEl.textContent = division;
-    body.appendChild(orgEl);
-    const descEl = doc.createElement('div');
-    descEl.className = 'profile-cards__description';
-    descEl.textContent = description;
-    body.appendChild(descEl);
-    const footer = doc.createElement('div');
-    footer.className = 'profile-cards__footer';
-    const cta = doc.createElement('div');
-    cta.className = 'profile-cards__cta';
-    const a = doc.createElement('a');
-    a.href = ctaHref;
-    a.textContent = ctaLabel;
-    cta.appendChild(a);
-    footer.appendChild(cta);
-    card.appendChild(header);
-    card.appendChild(body);
-    card.appendChild(footer);
-    return card;
-}
-/** Same grid as {@link decorateProfileCardsMarkup}: two cards per `.profile-cards__row`. */
-function buildProfileCardsHtmlFromSheetRows(rows) {
-    const doc = new DOMParser().parseFromString('<!DOCTYPE html><html><body></body></html>', 'text/html');
-    const root = doc.createElement('div');
-    root.className = 'profile-cards';
-    chunkPairs(rows).forEach((pair) => {
-        const rowEl = doc.createElement('div');
-        rowEl.className = 'profile-cards__row';
-        pair.forEach((item) => rowEl.appendChild(buildCardFromSheetRow(item, doc)));
-        root.appendChild(rowEl);
-    });
-    return root.outerHTML;
-}
 class ProfileCardsComponent {
     constructor() {
         this.el = (0,_angular_core__WEBPACK_IMPORTED_MODULE_1__.inject)((_angular_core__WEBPACK_IMPORTED_MODULE_1__.ElementRef));
         this.sanitizer = (0,_angular_core__WEBPACK_IMPORTED_MODULE_1__.inject)(_angular_platform_browser__WEBPACK_IMPORTED_MODULE_2__.DomSanitizer);
         this.authoredHtml = (0,_angular_core__WEBPACK_IMPORTED_MODULE_1__.inject)(_shared_block_tokens__WEBPACK_IMPORTED_MODULE_0__.EDS_BLOCK_HTML, { optional: true });
-        this.datasheetFromDom = isDatasheetBlockContext(this.el.nativeElement);
+        this.datasheetFromDom = this.isDatasheetBlockContext(this.el.nativeElement);
         /** `undefined` = loading; set after fetch. */
         this.sheetRows = (0,_angular_core__WEBPACK_IMPORTED_MODULE_1__.signal)(undefined);
         this.sheetError = (0,_angular_core__WEBPACK_IMPORTED_MODULE_1__.signal)(null);
         this.safeDecoratedHtml = (0,_angular_core__WEBPACK_IMPORTED_MODULE_1__.computed)(() => {
             const raw = this.authoredHtml?.trim() ?? '';
-            const datasheet = this.datasheetFromDom || isProfileCardsDatasheetVariation(raw);
+            const datasheet = this.datasheetFromDom || this.isProfileCardsDatasheetVariation(raw);
             if (datasheet) {
                 const err = this.sheetError();
                 if (err) {
                     return this.sanitizer.bypassSecurityTrustHtml(`<div class="profile-cards profile-cards--datasheet">`
-                        + `<p class="profile-cards__datasheet-placeholder">${escapeHtml(err)}</p>`
+                        + `<p class="profile-cards__datasheet-placeholder">${this.escapeHtml(err)}</p>`
                         + '</div>');
                 }
                 const rows = this.sheetRows();
@@ -303,18 +59,27 @@ class ProfileCardsComponent {
                         + '<p class="profile-cards__datasheet-placeholder">No profile data.</p>'
                         + '</div>');
                 }
-                return this.sanitizer.bypassSecurityTrustHtml(buildProfileCardsHtmlFromSheetRows(rows));
+                return this.sanitizer.bypassSecurityTrustHtml(this.buildProfileCardsHtmlFromSheetRows(rows));
             }
             if (!raw)
                 return null;
-            return this.sanitizer.bypassSecurityTrustHtml(decorateProfileCardsMarkup(raw));
+            return this.sanitizer.bypassSecurityTrustHtml(this.decorateProfileCardsMarkup(raw));
         });
     }
     /** Served from site root (same origin as the page). */
     static { this.DATASHEET_JSON_PATH = '/profile-cards-data.json'; }
+    /** Sheet column keys from AEM (includes typo `devision`). */
+    static { this.SHEET_KEY_IMAGE = 'profile image'; }
+    static { this.SHEET_KEY_NAME = 'name'; }
+    static { this.SHEET_KEY_DESIGNATION = 'designation'; }
+    static { this.SHEET_KEY_DIVISION = 'devision'; }
+    static { this.SHEET_KEY_DIVISION_ALT = 'division'; }
+    static { this.SHEET_KEY_DESCRIPTION = 'description'; }
+    static { this.SHEET_KEY_CTA_LABEL = 'learn more label'; }
+    static { this.SHEET_KEY_CTA_LINK = 'learn more link'; }
     ngOnInit() {
         const raw = this.authoredHtml?.trim() ?? '';
-        const datasheet = this.datasheetFromDom || isProfileCardsDatasheetVariation(raw);
+        const datasheet = this.datasheetFromDom || this.isProfileCardsDatasheetVariation(raw);
         if (!datasheet)
             return;
         void this.loadDatasheetJson();
@@ -343,21 +108,258 @@ class ProfileCardsComponent {
             this.sheetRows.set([]);
         }
     }
+    /**
+     * `datasheet` is on the EDS `.block` host or parent (not always present in `EDS_BLOCK_HTML`).
+     */
+    isDatasheetBlockContext(host) {
+        if (host.classList.contains('datasheet'))
+            return true;
+        if (host.parentElement?.classList.contains('datasheet'))
+            return true;
+        const block = host.closest('.block');
+        return block instanceof HTMLElement && block.classList.contains('datasheet');
+    }
+    /** EDS may send `<div class="profile-cards datasheet">…</div>` — separate handling from default cards. */
+    isProfileCardsDatasheetVariation(html) {
+        const doc = new DOMParser().parseFromString(html.trim(), 'text/html');
+        if (doc.body.querySelector('.profile-cards.datasheet'))
+            return true;
+        const root = doc.body.querySelector('.profile-cards') ?? doc.body.firstElementChild;
+        return (root instanceof HTMLElement
+            && root.classList.contains('profile-cards')
+            && root.classList.contains('datasheet'));
+    }
+    isCardShellEmpty(card) {
+        if (card.querySelector('picture'))
+            return false;
+        const t = card.textContent?.replace(/\s/g, '') ?? '';
+        return t.length === 0;
+    }
+    getDirectChildPs(el) {
+        return [...el.children].filter((c) => c.tagName === 'P');
+    }
+    /**
+     * Column divs that match EDS profile shape: ≥5 direct &lt;p&gt;, first has &lt;picture&gt;.
+     */
+    findColumnDivs(scope) {
+        const candidates = [];
+        scope.querySelectorAll('div').forEach((div) => {
+            const ps = this.getDirectChildPs(div);
+            if (ps.length < 5)
+                return;
+            if (!ps[0]?.querySelector('picture'))
+                return;
+            candidates.push(div);
+        });
+        return candidates.filter((d) => !candidates.some((other) => other !== d && d.contains(other)));
+    }
+    /**
+     * One EDS column cell → card markup (divs only; picture / anchor preserved).
+     */
+    buildCard(column, doc) {
+        if (this.isCardShellEmpty(column))
+            return null;
+        const ps = this.getDirectChildPs(column);
+        if (ps.length < 5)
+            return null;
+        const [pPic, pName, pTitle, pOrg, pDesc, pLink] = ps;
+        const card = doc.createElement('div');
+        card.className = 'profile-cards__card';
+        const header = doc.createElement('div');
+        header.className = 'profile-cards__header';
+        const media = doc.createElement('div');
+        media.className = 'profile-cards__media';
+        const picture = pPic?.querySelector('picture');
+        if (picture) {
+            const picClone = picture.cloneNode(true);
+            picClone.classList.add('profile-cards__picture');
+            const img = picClone.querySelector('img');
+            if (img)
+                img.classList.add('profile-cards__image');
+            media.appendChild(picClone);
+        }
+        const identity = doc.createElement('div');
+        identity.className = 'profile-cards__identity';
+        if (pName) {
+            const nameEl = doc.createElement('div');
+            nameEl.className = 'profile-cards__name';
+            nameEl.textContent = pName.textContent?.trim() ?? '';
+            identity.appendChild(nameEl);
+        }
+        if (pTitle) {
+            const roleEl = doc.createElement('div');
+            roleEl.className = 'profile-cards__role';
+            roleEl.textContent = pTitle.textContent?.trim() ?? '';
+            identity.appendChild(roleEl);
+        }
+        header.appendChild(media);
+        header.appendChild(identity);
+        const body = doc.createElement('div');
+        body.className = 'profile-cards__body';
+        if (pOrg) {
+            const orgEl = doc.createElement('div');
+            orgEl.className = 'profile-cards__org';
+            orgEl.textContent = pOrg.textContent?.trim() ?? '';
+            body.appendChild(orgEl);
+        }
+        if (pDesc) {
+            const descEl = doc.createElement('div');
+            descEl.className = 'profile-cards__description';
+            descEl.textContent = pDesc.textContent?.trim() ?? '';
+            body.appendChild(descEl);
+        }
+        const footer = doc.createElement('div');
+        footer.className = 'profile-cards__footer';
+        const cta = doc.createElement('div');
+        cta.className = 'profile-cards__cta';
+        if (pLink) {
+            cta.innerHTML = pLink.innerHTML;
+        }
+        footer.appendChild(cta);
+        card.appendChild(header);
+        card.appendChild(body);
+        card.appendChild(footer);
+        return card;
+    }
+    /**
+     * Rewrites EDS row/column markup: `.profile-cards` > `.profile-cards__row` > `.profile-cards__card` × n
+     * (no `__rows` / `__column` wrappers). Fallback: one row with all detected cards.
+     */
+    decorateProfileCardsMarkup(html) {
+        const doc = new DOMParser().parseFromString(html.trim(), 'text/html');
+        const rootEl = doc.body.querySelector('.profile-cards') ?? doc.body;
+        const out = doc.createElement('div');
+        out.className = 'profile-cards';
+        const rowDivs = [...rootEl.children].filter((c) => c.tagName === 'DIV');
+        let placedFromRows = false;
+        rowDivs.forEach((rowEl) => {
+            const rowOut = doc.createElement('div');
+            rowOut.className = 'profile-cards__row';
+            [...rowEl.children]
+                .filter((c) => c.tagName === 'DIV')
+                .forEach((colEl) => {
+                const card = this.buildCard(colEl, doc);
+                if (card)
+                    rowOut.appendChild(card);
+            });
+            if (rowOut.children.length > 0) {
+                out.appendChild(rowOut);
+                placedFromRows = true;
+            }
+        });
+        if (!placedFromRows) {
+            const flatRow = doc.createElement('div');
+            flatRow.className = 'profile-cards__row';
+            this.findColumnDivs(rootEl).forEach((colEl) => {
+                const card = this.buildCard(colEl, doc);
+                if (card)
+                    flatRow.appendChild(card);
+            });
+            if (flatRow.children.length > 0) {
+                out.appendChild(flatRow);
+            }
+        }
+        return out.outerHTML;
+    }
+    chunkPairs(items) {
+        const out = [];
+        for (let i = 0; i < items.length; i += 2) {
+            out.push(items.slice(i, i + 2));
+        }
+        return out;
+    }
+    /**
+     * One sheet row → same DOM as {@link buildCard} (media, identity, body, CTA).
+     */
+    buildCardFromSheetRow(row, doc) {
+        const imgSrc = (row[ProfileCardsComponent.SHEET_KEY_IMAGE] ?? '').trim();
+        const name = (row[ProfileCardsComponent.SHEET_KEY_NAME] ?? '').trim();
+        const designation = (row[ProfileCardsComponent.SHEET_KEY_DESIGNATION] ?? '').trim();
+        const division = (row[ProfileCardsComponent.SHEET_KEY_DIVISION]
+            ?? row[ProfileCardsComponent.SHEET_KEY_DIVISION_ALT]
+            ?? '').trim();
+        const description = (row[ProfileCardsComponent.SHEET_KEY_DESCRIPTION] ?? '').trim();
+        const ctaLabel = (row[ProfileCardsComponent.SHEET_KEY_CTA_LABEL] ?? 'Learn more').trim();
+        const ctaHref = (row[ProfileCardsComponent.SHEET_KEY_CTA_LINK] ?? '#').trim();
+        const card = doc.createElement('div');
+        card.className = 'profile-cards__card';
+        const header = doc.createElement('div');
+        header.className = 'profile-cards__header';
+        const media = doc.createElement('div');
+        media.className = 'profile-cards__media';
+        const picture = doc.createElement('picture');
+        picture.className = 'profile-cards__picture';
+        const img = doc.createElement('img');
+        img.className = 'profile-cards__image';
+        img.src = imgSrc;
+        img.alt = '';
+        img.loading = 'lazy';
+        picture.appendChild(img);
+        media.appendChild(picture);
+        const identity = doc.createElement('div');
+        identity.className = 'profile-cards__identity';
+        const nameEl = doc.createElement('div');
+        nameEl.className = 'profile-cards__name';
+        nameEl.textContent = name;
+        identity.appendChild(nameEl);
+        const roleEl = doc.createElement('div');
+        roleEl.className = 'profile-cards__role';
+        roleEl.textContent = designation;
+        identity.appendChild(roleEl);
+        header.appendChild(media);
+        header.appendChild(identity);
+        const body = doc.createElement('div');
+        body.className = 'profile-cards__body';
+        const orgEl = doc.createElement('div');
+        orgEl.className = 'profile-cards__org';
+        orgEl.textContent = division;
+        body.appendChild(orgEl);
+        const descEl = doc.createElement('div');
+        descEl.className = 'profile-cards__description';
+        descEl.textContent = description;
+        body.appendChild(descEl);
+        const footer = doc.createElement('div');
+        footer.className = 'profile-cards__footer';
+        const cta = doc.createElement('div');
+        cta.className = 'profile-cards__cta';
+        const a = doc.createElement('a');
+        a.href = ctaHref;
+        a.textContent = ctaLabel;
+        cta.appendChild(a);
+        footer.appendChild(cta);
+        card.appendChild(header);
+        card.appendChild(body);
+        card.appendChild(footer);
+        return card;
+    }
+    /** Same grid as {@link decorateProfileCardsMarkup}: two cards per `.profile-cards__row`. */
+    buildProfileCardsHtmlFromSheetRows(rows) {
+        const doc = new DOMParser().parseFromString('<!DOCTYPE html><html><body></body></html>', 'text/html');
+        const root = doc.createElement('div');
+        root.className = 'profile-cards';
+        this.chunkPairs(rows).forEach((pair) => {
+            const rowEl = doc.createElement('div');
+            rowEl.className = 'profile-cards__row';
+            pair.forEach((item) => rowEl.appendChild(this.buildCardFromSheetRow(item, doc)));
+            root.appendChild(rowEl);
+        });
+        return root.outerHTML;
+    }
+    /** Escape text for safe insertion into HTML attribute or body (minimal). */
+    escapeHtml(text) {
+        return text
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
     static { this.ɵfac = function ProfileCardsComponent_Factory(__ngFactoryType__) { return new (__ngFactoryType__ || ProfileCardsComponent)(); }; }
     static { this.ɵcmp = /*@__PURE__*/ _angular_core__WEBPACK_IMPORTED_MODULE_1__["ɵɵdefineComponent"]({ type: ProfileCardsComponent, selectors: [["profile-cards-root"]], decls: 2, vars: 1, consts: [[1, "profile-cards-root__content", 3, "innerHTML"], [1, "profile-cards-root__empty"]], template: function ProfileCardsComponent_Template(rf, ctx) { if (rf & 1) {
             _angular_core__WEBPACK_IMPORTED_MODULE_1__["ɵɵtemplate"](0, ProfileCardsComponent_Conditional_0_Template, 1, 1, "div", 0)(1, ProfileCardsComponent_Conditional_1_Template, 2, 0, "p", 1);
         } if (rf & 2) {
             let tmp_0_0;
             _angular_core__WEBPACK_IMPORTED_MODULE_1__["ɵɵconditional"]((tmp_0_0 = ctx.safeDecoratedHtml()) ? 0 : 1, tmp_0_0);
-        } }, styles: ["\n/* Desktop-focused: .profile-cards > .profile-cards__row > .profile-cards__card */\n:host {\n  display: block;\n  min-width: 0;\n}\n\n.profile-cards-root__content {\n  min-width: 0;\n}\n\n.profile-cards-root__empty {\n  margin: 0;\n  padding: 1rem;\n  font-size: 0.95rem;\n  color: #64748b;\n}\n\n.profile-cards {\n  display: flex;\n  flex-direction: column;\n  gap: 1.5rem;\n}\n.profile-cards .profile-cards__row {\n  display: grid;\n  grid-template-columns: repeat(2, minmax(0, 1fr));\n  gap: 1.5rem;\n  align-items: stretch;\n  min-width: 0;\n}\n.profile-cards .profile-cards__card {\n  box-sizing: border-box;\n  min-width: 0;\n  height: 100%;\n  display: flex;\n  flex-direction: column;\n  padding: 1.5rem 1.75rem;\n  border: 1px solid #e2e8f0;\n  border-radius: 4px;\n  background: #fff;\n  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);\n}\n.profile-cards .profile-cards__header {\n  display: flex;\n  flex-direction: row;\n  align-items: center;\n  gap: 1.25rem;\n  margin: 0 0 1.25rem;\n}\n.profile-cards .profile-cards__media {\n  flex-shrink: 0;\n}\n.profile-cards .profile-cards__media .profile-cards__picture {\n  display: block;\n  width: 5.5rem;\n  height: 5.5rem;\n  margin: 0;\n  overflow: hidden;\n  border-radius: 50%;\n}\n.profile-cards .profile-cards__media .profile-cards__picture img,\n.profile-cards .profile-cards__media .profile-cards__picture .profile-cards__image {\n  display: block;\n  width: 100%;\n  height: 100%;\n  border-radius: 50%;\n  object-fit: cover;\n}\n.profile-cards .profile-cards__identity {\n  flex: 1;\n  min-width: 0;\n}\n.profile-cards .profile-cards__identity .profile-cards__name {\n  margin: 0 0 0.35rem;\n  font-size: 1rem;\n  font-weight: 700;\n  line-height: 1.3;\n  color: #0f172a;\n}\n.profile-cards .profile-cards__identity .profile-cards__role {\n  margin: 0;\n  font-size: 0.875rem;\n  font-weight: 400;\n  line-height: 1.4;\n  color: #64748b;\n}\n.profile-cards .profile-cards__body {\n  flex: 1;\n  margin: 0 0 1.25rem;\n}\n.profile-cards .profile-cards__body .profile-cards__org {\n  margin: 0 0 0.5rem;\n  font-size: 1.35rem;\n  font-weight: 700;\n  line-height: 1.25;\n  color: #0f172a;\n}\n.profile-cards .profile-cards__body .profile-cards__description {\n  margin: 0;\n  font-size: 0.95rem;\n  font-weight: 400;\n  line-height: 1.5;\n  color: #334155;\n}\n.profile-cards .profile-cards__footer {\n  margin-top: auto;\n  display: flex;\n  justify-content: flex-end;\n}\n.profile-cards .profile-cards__footer .profile-cards__cta {\n  margin: 0;\n}\n.profile-cards .profile-cards__footer .profile-cards__cta a {\n  display: inline-flex;\n  align-items: center;\n  gap: 0.35rem;\n  font-size: 0.95rem;\n  font-weight: 600;\n  color: #1d4ed8;\n  text-decoration: none;\n}\n.profile-cards .profile-cards__footer .profile-cards__cta a:hover {\n  text-decoration: underline;\n}\n.profile-cards .profile-cards__footer .profile-cards__cta a::after {\n  content: \">\";\n  font-size: 0.85em;\n  font-weight: 700;\n}"], encapsulation: 2 }); }
-}
-/** Escape text for safe insertion into HTML attribute or body (minimal). */
-function escapeHtml(text) {
-    return text
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
+        } }, styles: ["\n\n[_nghost-%COMP%] {\n  display: block;\n  min-width: 0;\n}\n\n.profile-cards-root__content[_ngcontent-%COMP%] {\n  min-width: 0;\n}\n\n.profile-cards-root__empty[_ngcontent-%COMP%] {\n  margin: 0;\n  padding: 1rem;\n  font-size: 0.95rem;\n  color: #64748b;\n}\n\n.profile-cards[_ngcontent-%COMP%] {\n  display: flex;\n  flex-direction: column;\n  gap: 1.5rem;\n}\n.profile-cards[_ngcontent-%COMP%]   .profile-cards__row[_ngcontent-%COMP%] {\n  display: grid;\n  grid-template-columns: repeat(2, minmax(0, 1fr));\n  gap: 1.5rem;\n  align-items: stretch;\n  min-width: 0;\n}\n.profile-cards[_ngcontent-%COMP%]   .profile-cards__card[_ngcontent-%COMP%] {\n  box-sizing: border-box;\n  min-width: 0;\n  height: 100%;\n  display: flex;\n  flex-direction: column;\n  padding: 1.5rem 1.75rem;\n  border: 1px solid #e2e8f0;\n  border-radius: 4px;\n  background: #fff;\n  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);\n}\n.profile-cards[_ngcontent-%COMP%]   .profile-cards__header[_ngcontent-%COMP%] {\n  display: flex;\n  flex-direction: row;\n  align-items: center;\n  gap: 1.25rem;\n  margin: 0 0 1.25rem;\n}\n.profile-cards[_ngcontent-%COMP%]   .profile-cards__media[_ngcontent-%COMP%] {\n  flex-shrink: 0;\n}\n.profile-cards[_ngcontent-%COMP%]   .profile-cards__media[_ngcontent-%COMP%]   .profile-cards__picture[_ngcontent-%COMP%] {\n  display: block;\n  width: 5.5rem;\n  height: 5.5rem;\n  margin: 0;\n  overflow: hidden;\n  border-radius: 50%;\n}\n.profile-cards[_ngcontent-%COMP%]   .profile-cards__media[_ngcontent-%COMP%]   .profile-cards__picture[_ngcontent-%COMP%]   img[_ngcontent-%COMP%], \n.profile-cards[_ngcontent-%COMP%]   .profile-cards__media[_ngcontent-%COMP%]   .profile-cards__picture[_ngcontent-%COMP%]   .profile-cards__image[_ngcontent-%COMP%] {\n  display: block;\n  width: 100%;\n  height: 100%;\n  border-radius: 50%;\n  object-fit: cover;\n}\n.profile-cards[_ngcontent-%COMP%]   .profile-cards__identity[_ngcontent-%COMP%] {\n  flex: 1;\n  min-width: 0;\n}\n.profile-cards[_ngcontent-%COMP%]   .profile-cards__identity[_ngcontent-%COMP%]   .profile-cards__name[_ngcontent-%COMP%] {\n  margin: 0 0 0.35rem;\n  font-size: 1rem;\n  font-weight: 700;\n  line-height: 1.3;\n  color: #0f172a;\n}\n.profile-cards[_ngcontent-%COMP%]   .profile-cards__identity[_ngcontent-%COMP%]   .profile-cards__role[_ngcontent-%COMP%] {\n  margin: 0;\n  font-size: 0.875rem;\n  font-weight: 400;\n  line-height: 1.4;\n  color: #64748b;\n}\n.profile-cards[_ngcontent-%COMP%]   .profile-cards__body[_ngcontent-%COMP%] {\n  flex: 1;\n  margin: 0 0 1.25rem;\n}\n.profile-cards[_ngcontent-%COMP%]   .profile-cards__body[_ngcontent-%COMP%]   .profile-cards__org[_ngcontent-%COMP%] {\n  margin: 0 0 0.5rem;\n  font-size: 1.35rem;\n  font-weight: 700;\n  line-height: 1.25;\n  color: #0f172a;\n}\n.profile-cards[_ngcontent-%COMP%]   .profile-cards__body[_ngcontent-%COMP%]   .profile-cards__description[_ngcontent-%COMP%] {\n  margin: 0;\n  font-size: 0.95rem;\n  font-weight: 400;\n  line-height: 1.5;\n  color: #334155;\n}\n.profile-cards[_ngcontent-%COMP%]   .profile-cards__footer[_ngcontent-%COMP%] {\n  margin-top: auto;\n  display: flex;\n  justify-content: flex-end;\n}\n.profile-cards[_ngcontent-%COMP%]   .profile-cards__footer[_ngcontent-%COMP%]   .profile-cards__cta[_ngcontent-%COMP%] {\n  margin: 0;\n}\n.profile-cards[_ngcontent-%COMP%]   .profile-cards__footer[_ngcontent-%COMP%]   .profile-cards__cta[_ngcontent-%COMP%]   a[_ngcontent-%COMP%] {\n  display: inline-flex;\n  align-items: center;\n  gap: 0.35rem;\n  font-size: 0.95rem;\n  font-weight: 600;\n  color: #1d4ed8;\n  text-decoration: none;\n}\n.profile-cards[_ngcontent-%COMP%]   .profile-cards__footer[_ngcontent-%COMP%]   .profile-cards__cta[_ngcontent-%COMP%]   a[_ngcontent-%COMP%]:hover {\n  text-decoration: underline;\n}\n.profile-cards[_ngcontent-%COMP%]   .profile-cards__footer[_ngcontent-%COMP%]   .profile-cards__cta[_ngcontent-%COMP%]   a[_ngcontent-%COMP%]::after {\n  content: \">\";\n  font-size: 0.85em;\n  font-weight: 700;\n}"] }); }
 }
 
 
