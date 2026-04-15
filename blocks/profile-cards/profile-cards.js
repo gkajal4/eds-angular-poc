@@ -29,7 +29,7 @@ function ProfileCardsComponent_Conditional_0_Template(rf, ctx) { if (rf & 1) {
 } }
 function ProfileCardsComponent_Conditional_1_Template(rf, ctx) { if (rf & 1) {
     _angular_core__WEBPACK_IMPORTED_MODULE_2__["ɵɵelementStart"](0, "p", 1);
-    _angular_core__WEBPACK_IMPORTED_MODULE_2__["ɵɵtext"](1, "No content in this block..");
+    _angular_core__WEBPACK_IMPORTED_MODULE_2__["ɵɵtext"](1, "No content in this block.");
     _angular_core__WEBPACK_IMPORTED_MODULE_2__["ɵɵelementEnd"]();
 } }
 class ProfileCardsComponent {
