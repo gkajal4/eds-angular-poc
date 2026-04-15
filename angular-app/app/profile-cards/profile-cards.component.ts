@@ -7,6 +7,7 @@ import {
   signal,
 } from '@angular/core';
 import { DomSanitizer } from '@angular/platform-browser';
+import { loadFragment } from '@eds/blocks/fragment';
 import { EDS_BLOCK_HTML } from '../../shared/block-tokens';
 
 /** Shape of `/profile-cards-data.json` from AEM sheet JSON (`:type` sheet). */
@@ -29,6 +30,8 @@ export type ProfileCardsSheetRow = Record<string, string>;
 export class ProfileCardsComponent implements OnInit {
   /** Served from site root (same origin as the page). */
   private static readonly DATASHEET_JSON_PATH = '/profile-cards-data.json';
+  /** Index listing JSON (EDS). */
+  private static readonly PROFILES_INDEX_JSON_PATH = '/profiles-index.json';
 
   /** Sheet column keys from AEM (includes typo `devision`). */
   private static readonly SHEET_KEY_IMAGE = 'profile image';
@@ -43,16 +46,49 @@ export class ProfileCardsComponent implements OnInit {
   private readonly el = inject(ElementRef<HTMLElement>);
   private readonly sanitizer = inject(DomSanitizer);
   private readonly authoredHtml = inject(EDS_BLOCK_HTML, { optional: true });
+  private readonly indexFromDom = this.isIndexBlockContext(this.el.nativeElement);
   private readonly datasheetFromDom = this.isDatasheetBlockContext(this.el.nativeElement);
 
   /** `undefined` = loading; set after fetch. */
   private readonly sheetRows = signal<ProfileCardsSheetRow[] | undefined>(undefined);
   private readonly sheetError = signal<string | null>(null);
 
+  /** Index variation: rows built from `loadFragment` HTML (`undefined` = loading). */
+  private readonly indexProfileRows = signal<ProfileCardsSheetRow[] | undefined>(undefined);
+  private readonly indexError = signal<string | null>(null);
+
   readonly safeDecoratedHtml = computed(() => {
     const raw = this.authoredHtml?.trim() ?? '';
+    const index = this.indexFromDom || this.isProfileCardsIndexVariation(raw);
     const datasheet =
-      this.datasheetFromDom || this.isProfileCardsDatasheetVariation(raw);
+      !index && (this.datasheetFromDom || this.isProfileCardsDatasheetVariation(raw));
+
+    if (index) {
+      const err = this.indexError();
+      if (err) {
+        return this.sanitizer.bypassSecurityTrustHtml(
+          `<div class="profile-cards profile-cards--index">`
+            + `<p class="profile-cards__index-placeholder">${this.escapeHtml(err)}</p>`
+            + '</div>',
+        );
+      }
+      const idxRows = this.indexProfileRows();
+      if (idxRows === undefined) {
+        return this.sanitizer.bypassSecurityTrustHtml(
+          '<div class="profile-cards profile-cards--index">'
+            + '<p class="profile-cards__index-placeholder">Loading…</p>'
+            + '</div>',
+        );
+      }
+      if (idxRows.length === 0) {
+        return this.sanitizer.bypassSecurityTrustHtml(
+          '<div class="profile-cards profile-cards--index">'
+            + '<p class="profile-cards__index-placeholder">No profile data.</p>'
+            + '</div>',
+        );
+      }
+      return this.sanitizer.bypassSecurityTrustHtml(this.buildProfileCardsHtmlFromSheetRows(idxRows));
+    }
 
     if (datasheet) {
       const err = this.sheetError();
@@ -87,10 +123,125 @@ export class ProfileCardsComponent implements OnInit {
 
   ngOnInit(): void {
     const raw = this.authoredHtml?.trim() ?? '';
+    const index = this.indexFromDom || this.isProfileCardsIndexVariation(raw);
+    if (index) {
+      void this.loadProfilesIndexJson();
+      return;
+    }
     const datasheet =
       this.datasheetFromDom || this.isProfileCardsDatasheetVariation(raw);
     if (!datasheet) return;
     void this.loadDatasheetJson();
+  }
+
+  /**
+   * Fetches index JSON, loads each `path` via {@link loadFragment}, parses six-paragraph profile
+   * markup into sheet-shaped rows, and drives the same card grid as datasheet.
+   */
+  private async loadProfilesIndexJson(): Promise<void> {
+    this.indexError.set(null);
+    this.indexProfileRows.set(undefined);
+    try {
+      const url = new URL(ProfileCardsComponent.PROFILES_INDEX_JSON_PATH, window.location.href).href;
+      const res = await fetch(url, { credentials: 'same-origin' });
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+      const payload = (await res.json()) as { data?: unknown };
+      if (!Array.isArray(payload.data)) {
+        this.indexProfileRows.set([]);
+        this.indexError.set('Invalid index response.');
+        return;
+      }
+      const rows = payload.data as Array<{ path?: string }>;
+      const indexed = await Promise.all(
+        rows.map(async (row, rowIndex) => {
+          const path = typeof row.path === 'string' ? row.path.trim() : '';
+          if (!path) {
+            console.warn('[profile-cards] profiles-index row missing path', row);
+            return { rowIndex, profileRow: null as ProfileCardsSheetRow | null };
+          }
+          const fragment = await loadFragment(path);
+          if (!fragment) {
+            console.warn('[profile-cards] loadFragment returned null', path);
+            return { rowIndex, profileRow: null };
+          }
+          const profileRow = this.fragmentMainToProfileRow(fragment);
+          if (!profileRow) {
+            console.warn('[profile-cards] could not parse profile fragment', path);
+            return { rowIndex, profileRow: null };
+          }
+          return { rowIndex, profileRow };
+        }),
+      );
+      indexed.sort((a, b) => a.rowIndex - b.rowIndex);
+      const profileRows = indexed
+        .map((x) => x.profileRow)
+        .filter((r): r is ProfileCardsSheetRow => r !== null);
+      this.indexProfileRows.set(profileRows);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error('[profile-cards] Failed to load profiles index', err);
+      this.indexError.set(message);
+      this.indexProfileRows.set([]);
+    }
+  }
+
+  /**
+   * Finds a `div` whose direct children include at least six `<p>` nodes (profile fragment shape).
+   */
+  private findProfileFragmentColumn(scope: HTMLElement): HTMLElement | null {
+    const divs = scope.querySelectorAll('div');
+    for (let i = 0; i < divs.length; i += 1) {
+      const div = divs[i] as HTMLElement;
+      const ps = this.getDirectChildPs(div);
+      if (ps.length >= 6) return div;
+    }
+    return null;
+  }
+
+  /**
+   * Parses loaded fragment `<main>`: inner column with six `<p>` — image, name, designation,
+   * division, description, learn more (matches {@link buildCard} cell order).
+   */
+  private fragmentMainToProfileRow(main: HTMLElement): ProfileCardsSheetRow | null {
+    const root = this.findProfileFragmentColumn(main);
+    if (!root) return null;
+    const ps = this.getDirectChildPs(root);
+    if (ps.length < 6) return null;
+    const [pPic, pName, pTitle, pOrg, pDesc, pLink] = ps;
+
+    let imageUrl = '';
+    const pictureEl = pPic?.querySelector('picture');
+    if (pictureEl) {
+      const img = pictureEl.querySelector('img');
+      if (img instanceof HTMLImageElement) {
+        imageUrl = (img.currentSrc || img.src || '').trim();
+      }
+    }
+    if (!imageUrl) {
+      const a = pPic?.querySelector('a');
+      if (a instanceof HTMLAnchorElement) {
+        imageUrl = a.href.trim();
+      }
+    }
+
+    const row: ProfileCardsSheetRow = {
+      [ProfileCardsComponent.SHEET_KEY_IMAGE]: imageUrl,
+      [ProfileCardsComponent.SHEET_KEY_NAME]: pName?.textContent?.trim() ?? '',
+      [ProfileCardsComponent.SHEET_KEY_DESIGNATION]: pTitle?.textContent?.trim() ?? '',
+      [ProfileCardsComponent.SHEET_KEY_DIVISION]: pOrg?.textContent?.trim() ?? '',
+      [ProfileCardsComponent.SHEET_KEY_DESCRIPTION]: pDesc?.textContent?.trim() ?? '',
+    };
+    const linkA = pLink?.querySelector('a');
+    if (linkA instanceof HTMLAnchorElement) {
+      row[ProfileCardsComponent.SHEET_KEY_CTA_LINK] = linkA.href;
+      row[ProfileCardsComponent.SHEET_KEY_CTA_LABEL] = linkA.textContent?.trim() ?? 'Learn more';
+    } else {
+      row[ProfileCardsComponent.SHEET_KEY_CTA_LINK] = '#';
+      row[ProfileCardsComponent.SHEET_KEY_CTA_LABEL] = pLink?.textContent?.trim() ?? 'Learn more';
+    }
+    return row;
   }
 
   private async loadDatasheetJson(): Promise<void> {
@@ -125,6 +276,28 @@ export class ProfileCardsComponent implements OnInit {
     if (host.parentElement?.classList.contains('datasheet')) return true;
     const block = host.closest('.block');
     return block instanceof HTMLElement && block.classList.contains('datasheet');
+  }
+
+  /**
+   * `index` is on the EDS `.block` host or parent (not always present in `EDS_BLOCK_HTML`).
+   */
+  private isIndexBlockContext(host: HTMLElement): boolean {
+    if (host.classList.contains('index')) return true;
+    if (host.parentElement?.classList.contains('index')) return true;
+    const block = host.closest('.block');
+    return block instanceof HTMLElement && block.classList.contains('index');
+  }
+
+  /** EDS may send `<div class="profile-cards index">…</div>`. */
+  private isProfileCardsIndexVariation(html: string): boolean {
+    const doc = new DOMParser().parseFromString(html.trim(), 'text/html');
+    if (doc.body.querySelector('.profile-cards.index')) return true;
+    const root = doc.body.querySelector('.profile-cards') ?? doc.body.firstElementChild;
+    return (
+      root instanceof HTMLElement
+      && root.classList.contains('profile-cards')
+      && root.classList.contains('index')
+    );
   }
 
   /** EDS may send `<div class="profile-cards datasheet">…</div>` — separate handling from default cards. */

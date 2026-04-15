@@ -144,3 +144,15 @@
     }
   }
 }
+
+/* Loading / error / empty for datasheet & index (injected HTML). */
+.profile-cards.profile-cards--index,
+.profile-cards.profile-cards--datasheet {
+  .profile-cards__index-placeholder,
+  .profile-cards__datasheet-placeholder {
+    margin: 0;
+    padding: 1rem;
+    font-size: 0.95rem;
+    color: #64748b;
+  }
+}
