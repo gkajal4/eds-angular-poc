@@ -1,3 +1,35 @@
 /* stylelint-disable */
 
-.angular-demo-authored{margin-top:.75rem}.angular-demo-authored :first-child{margin-top:0}.angular-demo-layout{background:linear-gradient(145deg,#f8fafc,#eef2f7);border:1px solid #c6d4e3;border-radius:8px;padding:1rem 1.25rem}.angular-demo-title{font-size:1.25rem;font-weight:700;margin:0 0 .5rem}.angular-demo-body,.angular-demo-config{font-size:.95rem;line-height:1.5;margin:.35rem 0 0}.angular-demo-config{color:#1d4ed8}
+/*!***************************************************************************************************************************************************!*\
+  !*** css ./node_modules/css-loader/dist/cjs.js!./node_modules/sass-loader/dist/cjs.js!./angular-app/app/angular-demo/angular-demo.component.scss ***!
+  \***************************************************************************************************************************************************/
+.angular-demo-authored {
+  margin-top: 0.75rem;
+}
+.angular-demo-authored :first-child {
+  margin-top: 0;
+}
+
+.angular-demo-layout {
+  padding: 1rem 1.25rem;
+  border: 1px solid #c6d4e3;
+  border-radius: 8px;
+  background: linear-gradient(145deg, #f8fafc 0%, #eef2f7 100%);
+}
+
+.angular-demo-title {
+  margin: 0 0 0.5rem;
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.angular-demo-body,
+.angular-demo-config {
+  margin: 0.35rem 0 0;
+  line-height: 1.5;
+  font-size: 0.95rem;
+}
+
+.angular-demo-config {
+  color: #1d4ed8;
+}
